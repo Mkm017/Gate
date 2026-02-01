@@ -1,0 +1,145 @@
+/* gate-simulator/src/app/globals.css */
+
+@import "tailwindcss";
+
+:root {
+  --foreground-rgb: 23, 23, 23;
+  --background-start-rgb: 250, 250, 250;
+  --background-end-rgb: 255, 255, 255;
+  --primary: 59, 130, 246;
+  --secondary: 168, 85, 247;
+  --accent: 14, 165, 233;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-end-rgb));
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Fast transitions */
+* {
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+/* Button active states */
+button:active {
+  transform: scale(0.98);
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-slideIn {
+  animation: slideIn 0.2s ease-out;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.15s ease-out;
+}
+
+/* Clip Path Shapes */
+.clip-pentagon-up {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+.clip-pentagon-down {
+  clip-path: polygon(0% 0%, 100% 0%, 100% 75%, 50% 100%, 0% 75%);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.05);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb {
+  background: #bbb;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* Ensure full screen coverage */
+html, body, #__next, main {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Remove button focus outlines for cleaner look */
+button:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+/* Better focus for accessibility */
+button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .mobile-tap-area {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Smooth transitions for sidebar */
+.sidebar-transition {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  backdrop-filter: blur(2px);
+}
