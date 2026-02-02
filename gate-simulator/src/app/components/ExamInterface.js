@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   User, FileText, Check, X, ChevronLeft, ChevronRight, Menu, 
-  Clock, BookOpen, AlertCircle, Info, Award, BarChart3 
+  Clock, BookOpen, AlertCircle, Info, Award, BarChart3,
+  Pause, Play, Download, Printer
 } from 'lucide-react';
 
 const STATUS = {
@@ -13,7 +14,7 @@ const STATUS = {
   ANS_MARKED_FOR_REVIEW: 4
 };
 
-// Custom Notification Component (Declared Outside)
+// Custom Notification Component
 const Notification = ({ message, type = 'info', onClose }) => {
   const [visible, setVisible] = useState(true);
 
@@ -67,16 +68,37 @@ const Notification = ({ message, type = 'info', onClose }) => {
   );
 };
 
-// Custom Confirm Modal Component (Declared Outside)
-const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = "Confirm", cancelText = "Cancel" }) => {
+// Custom Confirm Modal Component
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = "Confirm", cancelText = "Cancel", type = 'info' }) => {
   if (!isOpen) return null;
   
+  const iconColor = {
+    info: 'text-blue-600',
+    warning: 'text-yellow-600',
+    danger: 'text-red-600',
+    success: 'text-green-600'
+  }[type];
+
+  const Icon = {
+    info: Info,
+    warning: AlertCircle,
+    danger: X,
+    success: Check
+  }[type];
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 animate-fadeIn">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all duration-150 scale-100">
-        <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-        <p className="text-gray-600 mb-6">{message}</p>
-        <div className="flex justify-end space-x-3">
+        <div className="flex items-start space-x-4 mb-4">
+          <div className={`${iconColor} flex-shrink-0`}>
+            <Icon size={24} />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
+            <div className="text-gray-600 whitespace-pre-line">{message}</div>
+          </div>
+        </div>
+        <div className="flex justify-end space-x-3 mt-6">
           <button
             onClick={onClose}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 font-medium transition-colors active:scale-95"
@@ -88,7 +110,13 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText 
               onConfirm();
               onClose();
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium transition-colors active:scale-95"
+            className={`px-4 py-2 font-medium rounded transition-colors active:scale-95 ${
+              type === 'danger' 
+                ? 'bg-red-600 hover:bg-red-700 text-white' 
+                : type === 'success'
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
           >
             {confirmText}
           </button>
@@ -98,8 +126,8 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText 
   );
 };
 
-// Question Paper Modal Component (Declared Outside)
-const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus }) => {
+// Question Paper Modal Component
+const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus, user, config }) => {
   const sections = [...new Set(questions.map(q => q.section))];
   const [selectedSection, setSelectedSection] = useState(sections[0] || '');
 
@@ -117,20 +145,73 @@ const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus }) =>
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownload = () => {
+    const paperData = {
+      examDetails: config,
+      user: user.name,
+      timestamp: new Date().toISOString(),
+      questions: questions.map(q => ({
+        id: q.id,
+        section: q.section,
+        question: q.question,
+        type: q.type,
+        marks: q.marks,
+        options: q.options,
+        userAnswer: answers[q.id],
+        status: qStatus[q.id],
+        correctAnswer: ''
+      }))
+    };
+
+    const dataStr = JSON.stringify(paperData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `GATE_${config.year}_${config.subject}_Attempted_Paper.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 animate-fadeIn">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-xl font-bold text-gray-900">Question Paper</h3>
-          <button 
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
-          >
-            <X size={24} />
-          </button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 animate-fadeIn print:bg-white print:p-0">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[80vh] flex flex-col print:h-auto print:shadow-none print:rounded-none">
+        <div className="flex items-center justify-between p-4 border-b print:block print:text-center">
+          <div className="print:hidden">
+            <h3 className="text-xl font-bold text-gray-900">Question Paper</h3>
+            <p className="text-sm text-gray-600">GATE {config.year} - {config.subject}</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={handleDownload}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center space-x-1 transition-colors"
+            >
+              <Download size={14} />
+              <span>Download</span>
+            </button>
+            <button 
+              onClick={handlePrint}
+              className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded flex items-center space-x-1 transition-colors"
+            >
+              <Printer size={14} />
+              <span>Print</span>
+            </button>
+            <button 
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded transition-colors print:hidden"
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
         
-        <div className="flex border-b">
+        <div className="flex border-b print:hidden">
           {sections.map(sec => (
             <button
               key={sec}
@@ -142,7 +223,14 @@ const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus }) =>
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">
+          {/* Print Header */}
+          <div className="hidden print:block mb-6 text-center border-b pb-4">
+            <h1 className="text-2xl font-bold text-gray-900">GATE {config.year} - {config.subject}</h1>
+            <p className="text-gray-600">Question Paper with Attempted Answers</p>
+            <p className="text-sm text-gray-500">Candidate: {user.name} | Date: {new Date().toLocaleDateString()}</p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {sectionQuestions.map((q, idx) => {
               const status = qStatus[q.id] || STATUS.NOT_VISITED;
@@ -150,7 +238,7 @@ const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus }) =>
               const globalIdx = questions.findIndex(qq => qq.id === q.id) + 1;
               
               return (
-                <div key={q.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div key={q.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow print:break-inside-avoid">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center space-x-3">
                       <div className="font-bold text-lg text-blue-700">Q{globalIdx}</div>
@@ -178,6 +266,9 @@ const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus }) =>
                         <div key={optIdx} className={`flex items-center space-x-2 p-2 rounded ${userAnswer === optIdx ? 'bg-blue-50 border border-blue-200' : ''}`}>
                           <div className={`w-4 h-4 rounded border ${userAnswer === optIdx ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
                           <span className="text-gray-700">{opt}</span>
+                          {userAnswer === optIdx && (
+                            <span className="ml-auto text-xs font-medium text-blue-600">Your Answer</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -189,13 +280,27 @@ const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus }) =>
                       <div className="font-mono text-lg text-blue-700">{userAnswer}</div>
                     </div>
                   )}
+
+                  {q.type === 'MSQ' && q.options && (
+                    <div className="space-y-2 text-sm">
+                      {q.options.map((opt, optIdx) => (
+                        <div key={optIdx} className={`flex items-center space-x-2 p-2 rounded ${Array.isArray(userAnswer) && userAnswer.includes(optIdx) ? 'bg-blue-50 border border-blue-200' : ''}`}>
+                          <div className={`w-4 h-4 rounded border ${Array.isArray(userAnswer) && userAnswer.includes(optIdx) ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
+                          <span className="text-gray-700">{opt}</span>
+                          {Array.isArray(userAnswer) && userAnswer.includes(optIdx) && (
+                            <span className="ml-auto text-xs font-medium text-blue-600">Selected</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
         
-        <div className="p-4 border-t bg-gray-50">
+        <div className="p-4 border-t bg-gray-50 print:hidden">
           <div className="flex flex-wrap gap-4 text-xs">
             <div className="flex items-center space-x-2"><div className="w-3 h-3 bg-green-500 rounded-sm"></div><span>Answered</span></div>
             <div className="flex items-center space-x-2"><div className="w-3 h-3 bg-red-500 rounded-sm"></div><span>Not Answered</span></div>
@@ -208,17 +313,45 @@ const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus }) =>
   );
 };
 
+// Helper function to format time
+const formatTime = (s) => {
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  const sec = s%60;
+  return `${h}:${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
+};
+
 // Main Exam Interface Component
 export default function ExamInterface({ user, config, questions = [], onSubmit }) {
   // Derive sections
   const sections = [...new Set(questions.map(q => q.section))];
   const initialSection = sections.includes("General Aptitude") ? "General Aptitude" : sections[0];
 
-  // State
+  // State - Initialize with restored values if available
   const [currentSection, setCurrentSection] = useState(initialSection);
   const [currentQIndex, setCurrentQIndex] = useState(0); 
   const [answers, setAnswers] = useState({});
-  const [timeLeft, setTimeLeft] = useState(config.duration * 60);
+  
+  // Initialize timeLeft with config value first, then update from localStorage
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const savedState = localStorage.getItem('gate-exam-timer');
+    if (savedState) {
+      const { timeLeft: savedTime, timestamp } = JSON.parse(savedState);
+      const timePassed = Math.floor((Date.now() - timestamp) / 1000);
+      return Math.max(0, savedTime - timePassed);
+    }
+    return config.duration * 60;
+  });
+  
+  const [isTimerPaused, setIsTimerPaused] = useState(() => {
+    const savedState = localStorage.getItem('gate-exam-timer');
+    if (savedState) {
+      const { isPaused } = JSON.parse(savedState);
+      return isPaused;
+    }
+    return false;
+  });
+  
   const [showSidebar, setShowSidebar] = useState(false);
   const [notification, setNotification] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -226,8 +359,35 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
   const [showQuestionPaper, setShowQuestionPaper] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
-  // Refs for performance
+  // Refs for performance and timer persistence
   const answersRef = useRef({});
+  const timerRef = useRef(null);
+  const lastUpdateRef = useRef(null);
+
+  // Initialize ref after component mounts
+  useEffect(() => {
+    lastUpdateRef.current = Date.now();
+  }, []);
+
+  // Save timer state periodically
+  useEffect(() => {
+    const saveTimerState = () => {
+      const state = {
+        timeLeft,
+        isPaused: isTimerPaused,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('gate-exam-timer', JSON.stringify(state));
+    };
+
+    const interval = setInterval(saveTimerState, 30000); // Save every 30 seconds
+    return () => clearInterval(interval);
+  }, [timeLeft, isTimerPaused]);
+
+  // Clear timer state on submit
+  const clearTimerState = () => {
+    localStorage.removeItem('gate-exam-timer');
+  };
 
   // Update refs
   useEffect(() => {
@@ -246,11 +406,12 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
   const sectionQuestions = questions.filter(q => q.section === currentSection);
   const currentQ = sectionQuestions[currentQIndex];
 
-  // Show notification (only for important events)
+  // Show notification
   const showNotification = useCallback((message, type = 'info') => {
-    // Don't show notifications for normal navigation
+    // Don't show notifications for normal navigation (keep old behavior)
     if (message.includes('marked') || message.includes('cleared') || 
-        message.includes('saved') || message.includes('Response')) {
+        message.includes('saved') || message.includes('Response') ||
+        message.includes('Timer')) {
       setNotification({ message, type });
     }
   }, []);
@@ -259,6 +420,15 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
   const clearNotification = useCallback(() => {
     setNotification(null);
   }, []);
+
+  // Timer control functions
+  const toggleTimer = useCallback(() => {
+    setIsTimerPaused(prev => !prev);
+    showNotification(
+      isTimerPaused ? 'Timer resumed' : 'Timer paused',
+      isTimerPaused ? 'success' : 'warning'
+    );
+  }, [isTimerPaused, showNotification]);
 
   // NAVIGATION HELPER
   const changeQuestion = useCallback((index, section) => {
@@ -295,15 +465,26 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
       
       setPendingAction(() => () => {
         const timeTaken = (config.duration * 60) - timeLeft;
+        clearTimerState(); // Clear timer state
         onSubmit(answersRef.current, timeTaken, qStatus);
       });
       setShowConfirmModal({
         type: 'submit',
-        stats: { totalQuestions, answered, markedForReview, notAnswered }
+        title: 'Confirm Submission',
+        message: `Are you sure you want to submit the exam?\n\n` +
+                `• Total Questions: ${totalQuestions}\n` +
+                `• Answered: ${answered}\n` +
+                `• Marked for Review: ${markedForReview}\n` +
+                `• Not Answered: ${notAnswered}\n` +
+                `\n⏱️ Time Remaining: ${formatTime(timeLeft)}\n` +
+                `\nOnce submitted, you cannot return to the exam.`,
+        confirmText: 'Submit Exam',
+        modalType: 'warning'
       });
       return;
     }
     const timeTaken = (config.duration * 60) - timeLeft;
+    clearTimerState(); // Clear timer state
     onSubmit(answersRef.current, timeTaken, qStatus);
   }, [config.duration, timeLeft, onSubmit, questions.length, qStatus]);
 
@@ -314,7 +495,12 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
       const currSecIdx = sections.indexOf(currentSection);
       if (currSecIdx < sections.length - 1) {
         setPendingAction(() => () => changeQuestion(0, sections[currSecIdx + 1]));
-        setShowSectionConfirm(true);
+        setShowSectionConfirm({
+          title: 'Next Section',
+          message: 'End of section. Do you want to proceed to the next section?',
+          confirmText: 'Continue',
+          modalType: 'info'
+        });
       }
     }
   }, [currentQIndex, sectionQuestions.length, sections, currentSection, changeQuestion]);
@@ -355,28 +541,35 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
       showNotification('Response cleared', 'info');
   }, [currentQ.id, answers, showNotification]);
 
-  // TIMER
+  // TIMER with pause functionality
   useEffect(() => {
-    if (timeLeft <= 0) return;
-    const timer = setInterval(() => {
-        setTimeLeft(prev => {
-            if (prev <= 1) {
-                clearInterval(timer);
-                handleSubmit(true);
-                return 0;
-            }
-            return prev - 1;
-        });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [timeLeft, handleSubmit]);
+    if (timeLeft <= 0) {
+      handleSubmit(true);
+      return;
+    }
 
-  const formatTime = (s) => {
-    const h = Math.floor(s/3600);
-    const m = Math.floor((s%3600)/60);
-    const sec = s%60;
-    return `${h}:${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
-  };
+    if (isTimerPaused) return;
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          handleSubmit(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+      if (lastUpdateRef.current) {
+        lastUpdateRef.current = Date.now();
+      }
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [timeLeft, isTimerPaused, handleSubmit]);
 
   const getPaletteStyles = (status) => {
     let base = "relative flex items-center justify-center text-sm font-bold cursor-pointer transition-all shadow-sm ";
@@ -406,6 +599,20 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
 
   const stats = calculateStats();
 
+  // Handle visibility change (tab switch)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && !isTimerPaused) {
+        // Tab switched away - auto-pause timer if not already paused
+        setIsTimerPaused(true);
+        showNotification('Timer paused - switched to another tab', 'warning');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isTimerPaused, showNotification]);
+
   return (
     <div className="flex flex-col h-screen bg-white font-sans select-none overflow-hidden text-gray-900">
       {/* Notification */}
@@ -425,18 +632,10 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
           if (pendingAction) pendingAction();
           setPendingAction(null);
         }}
-        title="Confirm Submission"
-        message={
-          showConfirmModal?.stats ? 
-          `Are you sure you want to submit the exam?\n\n` +
-          `• Total Questions: ${showConfirmModal.stats.totalQuestions}\n` +
-          `• Answered: ${showConfirmModal.stats.answered}\n` +
-          `• Marked for Review: ${showConfirmModal.stats.markedForReview}\n` +
-          `• Not Answered: ${showConfirmModal.stats.notAnswered}\n\n` +
-          `You cannot return to the exam after submission.`
-          : "Are you sure you want to submit the exam?"
-        }
-        confirmText="Submit Exam"
+        title={showConfirmModal?.title || 'Confirm Submission'}
+        message={showConfirmModal?.message || 'Are you sure you want to submit the exam?'}
+        confirmText={showConfirmModal?.confirmText || 'Submit Exam'}
+        type={showConfirmModal?.modalType || 'warning'}
       />
 
       {/* Section Confirm Modal */}
@@ -447,8 +646,10 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
           if (pendingAction) pendingAction();
           setPendingAction(null);
         }}
-        title="Next Section"
-        message="End of section. Do you want to proceed to the next section?"
+        title={showSectionConfirm?.title || 'Next Section'}
+        message={showSectionConfirm?.message || 'End of section. Do you want to proceed to the next section?'}
+        confirmText={showSectionConfirm?.confirmText || 'Continue'}
+        type={showSectionConfirm?.modalType || 'info'}
       />
 
       {/* Question Paper Modal */}
@@ -458,6 +659,8 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
         questions={questions}
         answers={answers}
         qStatus={qStatus}
+        user={user}
+        config={config}
       />
 
       {/* HEADER */}
@@ -488,6 +691,17 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
               <span>{stats.marked}</span>
             </div>
           </div>
+          <button
+            onClick={toggleTimer}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors active:scale-95 flex items-center space-x-1 ${
+              isTimerPaused 
+                ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' 
+                : 'bg-blue-100 text-blue-700 border border-blue-300'
+            }`}
+          >
+            {isTimerPaused ? <Play size={14} /> : <Pause size={14} />}
+            <span>{isTimerPaused ? 'Resume' : 'Pause'}</span>
+          </button>
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center border border-gray-300 overflow-hidden">
               <User size={24} className="text-gray-500" />
@@ -504,7 +718,11 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
             <button 
               key={sec}
               onClick={() => changeQuestion(0, sec)}
-              className={`px-4 py-2 text-xs font-bold rounded-t-md border-t border-l border-r whitespace-nowrap transition-colors active:scale-95 ${currentSection === sec ? 'bg-[#003366] text-white border-[#003366]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-300'}`}
+              className={`px-4 py-2 text-xs font-bold rounded-t-md border-t border-l border-r whitespace-nowrap transition-colors active:scale-95 ${
+                currentSection === sec 
+                  ? 'bg-[#003366] text-white border-[#003366]' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-300'
+              }`}
             >
               {sec}
             </button>
@@ -775,7 +993,13 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
               <button 
                 onClick={() => {
                   setPendingAction(() => () => window.location.reload());
-                  setShowConfirmModal({ type: 'exit', message: "Are you sure you want to exit the exam? All progress will be lost." });
+                  setShowConfirmModal({
+                    type: 'exit',
+                    title: 'Exit Exam',
+                    message: 'Are you sure you want to exit the exam? All progress will be lost.',
+                    confirmText: 'Exit',
+                    modalType: 'danger'
+                  });
                 }}
                 className="flex-1 py-2 bg-[#FF5252] hover:bg-red-600 text-white text-xs font-bold rounded shadow-sm flex items-center justify-center transition-colors active:scale-95"
               >

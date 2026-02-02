@@ -9,6 +9,15 @@
   --primary: 59, 130, 246;
   --secondary: 168, 85, 247;
   --accent: 14, 165, 233;
+  
+  /* Responsive font scaling */
+  --text-xs: clamp(0.75rem, 0.85vw, 0.875rem);
+  --text-sm: clamp(0.875rem, 1vw, 1rem);
+  --text-base: clamp(1rem, 1.15vw, 1.125rem);
+  --text-lg: clamp(1.125rem, 1.3vw, 1.25rem);
+  --text-xl: clamp(1.25rem, 1.5vw, 1.5rem);
+  --text-2xl: clamp(1.5rem, 2vw, 1.875rem);
+  --text-3xl: clamp(1.875rem, 2.5vw, 2.25rem);
 }
 
 body {
@@ -18,13 +27,25 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  overflow-x: hidden; /* Only hide horizontal overflow */
+}
+
+/* Responsive container */
+.container-responsive {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: max(1rem, 5vw);
+  padding-right: max(1rem, 5vw);
 }
 
 /* Fast transitions */
 * {
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease, font-size 0.15s ease;
+  box-sizing: border-box;
 }
 
 /* Button active states */
@@ -64,6 +85,15 @@ button:active {
   }
 }
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
 .animate-slideIn {
   animation: slideIn 0.2s ease-out;
 }
@@ -74,6 +104,10 @@ button:active {
 
 .animate-scaleIn {
   animation: scaleIn 0.15s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Clip Path Shapes */
@@ -87,19 +121,19 @@ button:active {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: rgba(0,0,0,0.05);
-  border-radius: 3px;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #bbb;
-  border-radius: 3px;
+  background: #aaa;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #999;
+  background: #888;
 }
 
 /* Ensure full screen coverage */
@@ -108,6 +142,36 @@ html, body, #__next, main {
   width: 100%;
   margin: 0;
   padding: 0;
+  /* REMOVED overflow: hidden - this was blocking scrolling */
+}
+
+/* Responsive typography classes */
+.text-responsive-xs {
+  font-size: var(--text-xs);
+}
+
+.text-responsive-sm {
+  font-size: var(--text-sm);
+}
+
+.text-responsive-base {
+  font-size: var(--text-base);
+}
+
+.text-responsive-lg {
+  font-size: var(--text-lg);
+}
+
+.text-responsive-xl {
+  font-size: var(--text-xl);
+}
+
+.text-responsive-2xl {
+  font-size: var(--text-2xl);
+}
+
+.text-responsive-3xl {
+  font-size: var(--text-3xl);
 }
 
 /* Remove button focus outlines for cleaner look */
@@ -122,15 +186,50 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+/* Touch-friendly elements */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   * {
     -webkit-tap-highlight-color: transparent;
   }
   
+  body {
+    font-size: var(--text-sm);
+  }
+  
   .mobile-tap-area {
     min-height: 44px;
     min-width: 44px;
+  }
+  
+  /* Increase touch targets on mobile */
+  button, a, input[type="radio"], input[type="checkbox"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Adjust spacing for mobile */
+  .container-responsive {
+    padding-left: max(0.75rem, 3vw);
+    padding-right: max(0.75rem, 3vw);
+  }
+}
+
+@media (min-width: 1536px) {
+  /* Large screen adjustments */
+  body {
+    font-size: var(--text-lg);
+  }
+  
+  .container-responsive {
+    max-width: 1536px;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }
 
@@ -141,5 +240,134 @@ button:focus-visible {
 
 /* Modal backdrop */
 .modal-backdrop {
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
+}
+
+/* Fluid images */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Responsive tables */
+.responsive-table {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Utility classes for responsive design */
+.full-viewport {
+  width: 100vw;
+  min-height: 100vh;
+}
+
+.min-h-screen-responsive {
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+}
+
+/* Card responsive */
+.card-responsive {
+  width: 100%;
+  max-width: 100%;
+  padding: clamp(1rem, 3vw, 2rem);
+  margin: 0 auto;
+}
+
+/* Form element responsiveness */
+input, select, textarea {
+  font-size: clamp(1rem, 1.1vw, 1.125rem);
+  padding: clamp(0.5rem, 1vw, 0.75rem);
+}
+
+/* Ensure content doesn't get too small */
+.min-readable {
+  font-size: clamp(0.875rem, 1.5vw, 1rem);
+  line-height: 1.5;
+}
+
+/* Loading spinner responsive */
+.loading-spinner {
+  width: clamp(2rem, 4vw, 3rem);
+  height: clamp(2rem, 4vw, 3rem);
+  border-width: clamp(2px, 0.3vw, 3px);
+}
+
+/* Icon sizing */
+.icon-sm {
+  width: clamp(1rem, 1.5vw, 1.25rem);
+  height: clamp(1rem, 1.5vw, 1.25rem);
+}
+
+.icon-md {
+  width: clamp(1.25rem, 2vw, 1.5rem);
+  height: clamp(1.25rem, 2vw, 1.5rem);
+}
+
+.icon-lg {
+  width: clamp(1.5rem, 2.5vw, 2rem);
+  height: clamp(1.5rem, 2.5vw, 2rem);
+}
+
+/* Prevent content from being too wide on large screens */
+.max-content-width {
+  max-width: 90rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Scroll container utility */
+.scroll-container {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.05);
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+/* Print styles */
+@media print {
+  body {
+    font-size: 12pt;
+    line-height: 1.4;
+    overflow: visible !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-break-avoid {
+    page-break-inside: avoid;
+  }
+  
+  .print-break-before {
+    page-break-before: always;
+  }
+  
+  .print-break-after {
+    page-break-after: always;
+  }
+  
+  /* Ensure printing works properly */
+  html, body {
+    height: auto;
+    overflow: visible;
+  }
 }

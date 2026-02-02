@@ -2,7 +2,7 @@
 
 "use client";
 import React, { useState, useEffect } from 'react';
-import PreExamViews from './PreExamViews'; // Changed from named to default import
+import PreExamViews from './PreExamViews';
 import ExamInterface from './ExamInterface';
 
 // Firebase will be handled conditionally
@@ -12,18 +12,18 @@ let db = null;
 try {
   // Only initialize if keys are provided
   const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "YOUR_API_KEY",
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "SENDER_ID",
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "APP_ID"
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || ""
   };
 
-  // Check if any real config is provided (not default placeholder)
+  // Check if any real config is provided
   const hasValidConfig = firebaseConfig.apiKey && 
-                       firebaseConfig.apiKey !== "YOUR_API_KEY" && 
-                       firebaseConfig.projectId !== "YOUR_PROJECT_ID";
+                       firebaseConfig.apiKey !== "" && 
+                       firebaseConfig.projectId !== "";
 
   if (hasValidConfig && typeof window !== 'undefined') {
     const { initializeApp } = require('firebase/app');
@@ -37,7 +37,7 @@ try {
     firebaseInitialized = true;
     console.log("Firebase initialized successfully");
   } else {
-    console.log("Firebase not configured or using default values. Running in offline mode.");
+    console.log("Firebase not configured. Running in offline mode.");
   }
 } catch (e) {
   console.log("Firebase initialization failed. Running in offline mode:", e.message);
@@ -58,6 +58,16 @@ export default function GateSimulator() {
   const [answerKey, setAnswerKey] = useState({});
   const [resultData, setResultData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Generate year options from 1987 to current year
+  const generateYearOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let year = 1987; year <= currentYear; year++) {
+      years.push(year);
+    }
+    return years;
+  };
 
   // Initialize with sample questions
   useEffect(() => {
@@ -112,6 +122,13 @@ export default function GateSimulator() {
       setQuestions(sampleQuestions);
       setAnswerKey(sampleAnswerKey);
     }
+  }, []);
+
+  // Clear timer state when leaving exam
+  useEffect(() => {
+    return () => {
+      localStorage.removeItem('gate-exam-timer');
+    };
   }, []);
 
   // ACTIONS
@@ -224,13 +241,11 @@ export default function GateSimulator() {
               result.status = 'wrong';
             }
           }
-          // For MSQ (Multiple Select Questions)
+          // For MSQ
           else if (q.type === 'MSQ') {
-            // For MSQ, answer key might be comma-separated indices
             const correctIndices = key.split(',').map(k => k.trim()).filter(k => k !== '');
             const userIndices = Array.isArray(userAns) ? userAns : [userAns];
             
-            // For MSQ: All correct answers must be selected, and no incorrect answers
             const allCorrectSelected = correctIndices.every(idx => 
               userIndices.includes(parseInt(idx))
             );
@@ -247,7 +262,6 @@ export default function GateSimulator() {
               result.marksObtained = q.marks;
               result.status = 'correct';
             } else {
-              // MSQ has no negative marking
               wrong++;
               result.status = 'wrong';
             }
@@ -327,7 +341,6 @@ export default function GateSimulator() {
         console.log("Results saved to Firebase");
       } catch(e) { 
         console.log("Firebase save failed:", e.message);
-        // Continue anyway - don't block the result view
       }
     }
 
@@ -369,6 +382,7 @@ export default function GateSimulator() {
         onBegin={handleBeginTest}
         resultData={resultData}
         isLoading={isLoading}
+        yearOptions={generateYearOptions()}
       />
     </>
   );

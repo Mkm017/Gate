@@ -1,7 +1,6 @@
 // gate-simulator/src/app/components/PreExamViews.js
-
 import React, { useState } from 'react';
-import { Check, Upload, FileText, X, CheckCircle, Loader2, Award, BarChart3, Clock, Calendar, User, BookOpen, Target, Percent, Trophy } from 'lucide-react';
+import { Check, Upload, FileText, X, CheckCircle, Loader2, Award, BarChart3, Clock, Calendar, User, BookOpen, Target, Percent, Trophy, Download, Printer } from 'lucide-react';
 
 const LoginView = ({ onLogin, isLoading }) => {
   const [pass, setPass] = useState('');
@@ -40,8 +39,6 @@ const LoginView = ({ onLogin, isLoading }) => {
               placeholder="Password"
               autoFocus
             />
-            <p className="text-xs text-gray-500 mt-2 text-center">
-            </p>
           </div>
           
           <button 
@@ -85,7 +82,7 @@ const LoginView = ({ onLogin, isLoading }) => {
   );
 };
 
-const SetupView = ({ config, setConfig, setQuestions, setAnswerKey, questionsLoaded, onStart, isLoading }) => {
+const SetupView = ({ config, setConfig, setQuestions, setAnswerKey, questionsLoaded, onStart, isLoading, yearOptions }) => {
   const [qStatus, setQStatus] = useState(null);
   const [aStatus, setAStatus] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -138,7 +135,7 @@ const SetupView = ({ config, setConfig, setQuestions, setAnswerKey, questionsLoa
                 value={config.year} 
                 onChange={e => setConfig({...config, year: e.target.value})}
               >
-                {Array.from({length: 10}, (_, i) => new Date().getFullYear() - i).map(y => 
+                {yearOptions.map(y => 
                   <option key={y} value={y}>{y}</option>
                 )}
               </select>
@@ -393,7 +390,7 @@ const InstructionsView = ({ config, onBegin, isLoading }) => {
   );
 };
 
-const ResultView = ({ resultData, setView }) => {
+const ResultView = ({ resultData, setView, config, user }) => {
   const r = resultData || { 
     score: 0, 
     attempted: 0, 
@@ -421,6 +418,257 @@ const ResultView = ({ resultData, setView }) => {
       setView('login');
       setIsExiting(false);
     }, 100);
+  };
+
+  // Download attempted paper with questions, options, and answers
+  const downloadAttemptedPaper = () => {
+    const paperData = {
+      examDetails: {
+        exam: 'GATE',
+        year: config.year,
+        subject: config.subject,
+        duration: config.duration,
+        set: config.set,
+        date: new Date().toISOString().split('T')[0]
+      },
+      user: {
+        name: user?.name || 'Anonymous',
+        resultSummary: {
+          score: r.score,
+          totalPossibleScore: r.totalPossibleScore,
+          attempted: r.attempted,
+          correct: r.correct,
+          wrong: r.wrong,
+          accuracy: r.attempted > 0 ? ((r.correct / r.attempted) * 100).toFixed(1) : 0,
+          negativeMarks: r.negativeMarks,
+          timeTaken: r.timeTaken
+        }
+      },
+      questions: r.questionWiseResults.map(q => {
+        const questionData = {
+          id: q.id,
+          section: q.section,
+          type: q.type,
+          marks: q.marks,
+          question: q.question,
+          userAnswer: q.userAnswer,
+          correctAnswer: q.correctAnswer || 'Not Provided',
+          status: q.status,
+          marksObtained: q.marksObtained,
+          isCorrect: q.status === 'correct'
+        };
+        
+        // Format answers for display
+        if (q.type === 'MCQ' && q.userAnswer !== undefined && q.userAnswer !== null) {
+          const options = ['A', 'B', 'C', 'D'];
+          questionData.userAnswerFormatted = `Option ${options[q.userAnswer]} (${q.userAnswer})`;
+          if (q.correctAnswer) {
+            questionData.correctAnswerFormatted = `Option ${options[parseInt(q.correctAnswer)] || q.correctAnswer}`;
+          }
+        } else if (q.type === 'MSQ' && Array.isArray(q.userAnswer)) {
+          const options = ['A', 'B', 'C', 'D'];
+          questionData.userAnswerFormatted = q.userAnswer.map(a => `Option ${options[a]}`).join(', ');
+          if (q.correctAnswer) {
+            const correctIndices = q.correctAnswer.split(',').map(idx => parseInt(idx.trim()));
+            questionData.correctAnswerFormatted = correctIndices.map(idx => `Option ${options[idx]}`).join(', ');
+          }
+        } else if (q.type === 'NAT') {
+          questionData.userAnswerFormatted = q.userAnswer || 'Not Attempted';
+          questionData.correctAnswerFormatted = q.correctAnswer || 'N/A';
+        }
+        
+        return questionData;
+      }),
+      timestamp: new Date().toISOString(),
+      summary: {
+        overallScore: `${r.score}/${r.totalPossibleScore}`,
+        percentage: ((parseFloat(r.score) / r.totalPossibleScore) * 100).toFixed(1) + '%',
+        accuracy: r.attempted > 0 ? ((r.correct / r.attempted) * 100).toFixed(1) + '%' : '0%',
+        totalQuestions: r.totalQuestions,
+        attempted: r.attempted,
+        correct: r.correct,
+        wrong: r.wrong
+      }
+    };
+
+    const dataStr = JSON.stringify(paperData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `GATE_${config.year}_${config.subject}_Attempted_Paper_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Generate HTML/PDF for attempted paper with visual formatting
+  // Update the generateFormattedPaper function in ResultView
+const generateFormattedPaper = () => {
+  const optionsMap = ['A', 'B', 'C', 'D'];
+  
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>GATE ${config.year} - ${config.subject} - Attempted Paper</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #003366; padding-bottom: 20px; }
+        .header h1 { color: #003366; margin: 0; }
+        .header .subtitle { color: #666; font-size: 14px; }
+        .user-info { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .summary { background: #e8f5e8; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .question { border: 1px solid #ddd; padding: 20px; margin-bottom: 20px; border-radius: 5px; page-break-inside: avoid; }
+        .question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .question-number { font-weight: bold; color: #003366; font-size: 18px; }
+        .question-status { padding: 5px 10px; border-radius: 3px; font-size: 12px; font-weight: bold; }
+        .status-correct { background: #4CAF50; color: white; }
+        .status-wrong { background: #f44336; color: white; }
+        .status-not-attempted { background: #9E9E9E; color: white; }
+        .question-text { margin-bottom: 15px; }
+        .options { margin: 15px 0; }
+        .option { padding: 8px 12px; margin: 5px 0; border-radius: 4px; border-left: 4px solid #ddd; }
+        .option-user { background: #e3f2fd; border-left-color: #2196F3; }
+        .option-correct { background: #e8f5e9; border-left-color: #4CAF50; }
+        .option-both { background: #c8e6c9; border-left-color: #2E7D32; font-weight: bold; }
+        .answer-section { margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 4px; }
+        .answer-label { font-weight: bold; color: #666; }
+        .section-header { background: #003366; color: white; padding: 10px; border-radius: 4px; margin: 30px 0 15px 0; }
+        .footer { text-align: center; margin-top: 40px; color: #666; font-size: 12px; border-top: 1px solid #ddd; padding-top: 20px; }
+        @media print {
+            body { margin: 20px; }
+            .question { border: 1px solid #000; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>GATE ${config.year} - ${config.subject}</h1>
+        <div class="subtitle">Attempted Question Paper with Answers</div>
+        <div class="subtitle">Candidate: ${user?.name || 'Anonymous'} | Date: ${new Date().toLocaleDateString()}</div>
+    </div>
+    
+    <div class="user-info">
+        <strong>Performance Summary:</strong><br>
+        Score: ${r.score}/${r.totalPossibleScore} (${((parseFloat(r.score) / r.totalPossibleScore) * 100).toFixed(1)}%)<br>
+        Accuracy: ${r.attempted > 0 ? ((r.correct / r.attempted) * 100).toFixed(1) : 0}%<br>
+        Questions: ${r.correct} Correct, ${r.wrong} Wrong, ${r.totalQuestions - r.attempted} Not Attempted<br>
+        Time Taken: ${r.timeTaken ? Math.floor(r.timeTaken / 60) + ':' + String(r.timeTaken % 60).padStart(2, '0') : 'N/A'}
+    </div>
+    
+    ${r.questionWiseResults && r.questionWiseResults.length > 0 ? 
+        Object.entries(r.questionWiseResults.reduce((acc, q) => {
+            if (!acc[q.section]) acc[q.section] = [];
+            acc[q.section].push(q);
+            return acc;
+        }, {})).map(([section, questions]) => `
+        <div class="section-header">${section}</div>
+        ${questions.map(q => {
+            const getStatusClass = (status) => {
+                if (status === 'correct') return 'status-correct';
+                if (status === 'wrong') return 'status-wrong';
+                return 'status-not-attempted';
+            };
+            
+            // Helper function to safely format MSQ correct answers
+            const formatMSQCorrectAnswer = (correctAnswer) => {
+                if (!correctAnswer) return 'N/A';
+                const correctAnswerStr = String(correctAnswer);
+                if (correctAnswerStr.includes(',')) {
+                  return correctAnswerStr.split(',').map(idx => {
+                    const numIdx = parseInt(idx.trim());
+                    return `Option ${optionsMap[numIdx] || idx}`;
+                  }).join(', ');
+                }
+                // Handle single number answer
+                const numIdx = parseInt(correctAnswerStr);
+                if (!isNaN(numIdx)) {
+                  return `Option ${optionsMap[numIdx] || correctAnswerStr}`;
+                }
+                return correctAnswerStr;
+              };
+              
+              // Helper function to safely format MCQ correct answers
+              const formatMCQCorrectAnswer = (correctAnswer) => {
+                if (!correctAnswer) return 'N/A';
+                const correctAnswerStr = String(correctAnswer);
+                const numIdx = parseInt(correctAnswerStr);
+                if (!isNaN(numIdx)) {
+                  return `Option ${optionsMap[numIdx] || correctAnswerStr}`;
+                }
+                return correctAnswerStr;
+              };
+              
+              // Format user answer for display
+              const formatUserAnswer = (q) => {
+                if (q.userAnswer === undefined || q.userAnswer === null || q.userAnswer === '') {
+                  return 'Not Attempted';
+                }
+                
+                if (q.type === 'MCQ') {
+                  const userAnswerNum = parseInt(q.userAnswer);
+                  if (!isNaN(userAnswerNum)) {
+                    return `Option ${optionsMap[userAnswerNum] || q.userAnswer}`;
+                  }
+                  return q.userAnswer;
+                }
+                
+                if (q.type === 'MSQ' && Array.isArray(q.userAnswer)) {
+                  return q.userAnswer.map(a => `Option ${optionsMap[a] || a}`).join(', ');
+                }
+                
+                if (q.type === 'MSQ' && typeof q.userAnswer === 'string' && q.userAnswer.includes(',')) {
+                  return q.userAnswer.split(',').map(idx => {
+                    const numIdx = parseInt(idx.trim());
+                    return `Option ${optionsMap[numIdx] || idx}`;
+                  }).join(', ');
+                }
+                
+                return String(q.userAnswer);
+              };
+            
+            return `
+            <div class="question">
+                <div class="question-header">
+                    <div class="question-number">Q${q.id}</div>
+                    <div class="question-status ${getStatusClass(q.status)}">
+                        ${q.status === 'correct' ? '✓ Correct' : 
+                         q.status === 'wrong' ? '✗ Wrong' : 
+                         '○ Not Attempted'} 
+                        (${q.marksObtained > 0 ? `+${q.marksObtained}` : q.marksObtained} marks)
+                    </div>
+                </div>
+                <div class="question-text">${q.question ? q.question.replace(/\n/g, '<br>') : 'No question text'}</div>
+                <div class="answer-section">
+                    <div><span class="answer-label">Your Answer:</span> ${formatUserAnswer(q)}</div>
+                    ${q.correctAnswer ? `<div><span class="answer-label">Correct Answer:</span> ${
+                      q.type === 'MCQ' ? formatMCQCorrectAnswer(q.correctAnswer) :
+                      q.type === 'MSQ' ? formatMSQCorrectAnswer(q.correctAnswer) :
+                      q.correctAnswer
+                    }</div>` : ''}
+                </div>
+            </div>
+            `;
+        }).join('')}
+        `).join('') : '<p>No questions found.</p>'}
+    
+    <div class="footer">
+        Generated by GATE Simulator • ${new Date().toLocaleString()}
+    </div>
+    
+    <div class="no-print" style="text-align: center; margin-top: 40px;">
+        <button onclick="window.print()" style="padding: 10px 20px; background: #003366; color: white; border: none; border-radius: 4px; cursor: pointer;">Print this paper</button>
+    </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
   };
 
   // Calculate performance metrics
@@ -456,31 +704,51 @@ const ResultView = ({ resultData, setView }) => {
   const notAttemptedQuestions = filteredQuestions.filter(q => q.status === 'not_attempted');
 
   // Format answer for display
-  const formatAnswer = (answer, question) => {
-    if (answer === undefined || answer === null || answer === '') return 'Not Attempted';
-    
-    if (question.type === 'MCQ') {
-      const options = ['A', 'B', 'C', 'D'];
-      return `Option ${options[answer]} (${answer})`;
+  // Update the formatAnswer function
+const formatAnswer = (answer, question) => {
+  if (answer === undefined || answer === null || answer === '') return 'Not Attempted';
+  
+  const options = ['A', 'B', 'C', 'D'];
+  
+  if (question.type === 'MCQ') {
+    const answerNum = parseInt(answer);
+    if (!isNaN(answerNum)) {
+      return `Option ${options[answerNum]} (${answer})`;
+    }
+    return answer;
+  }
+  
+  if (question.type === 'MSQ') {
+    if (Array.isArray(answer)) {
+      return answer.map(a => {
+        const num = parseInt(a);
+        return !isNaN(num) ? `Option ${options[num] || a}` : a;
+      }).join(', ');
     }
     
-    if (question.type === 'MSQ' && Array.isArray(answer)) {
-      const options = ['A', 'B', 'C', 'D'];
-      return answer.map(a => `Option ${options[a]}`).join(', ');
+    // Handle string format like "1,3"
+    if (typeof answer === 'string' && answer.includes(',')) {
+      return answer.split(',').map(idx => {
+        const numIdx = parseInt(idx.trim());
+        return !isNaN(numIdx) ? `Option ${options[numIdx] || idx}` : idx;
+      }).join(', ');
     }
     
     return answer.toString();
-  };
+  }
+  
+  return answer.toString();
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4 font-sans">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full border border-gray-200 overflow-hidden print:shadow-none print:border-none">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white print:bg-white print:text-black">
           <div className="flex justify-between items-start">
             <div>
               <h1 className="text-3xl font-bold mb-2">Exam Results</h1>
-              <div className="flex items-center space-x-4 text-blue-100">
+              <div className="flex items-center space-x-4 text-blue-100 print:text-gray-600">
                 <div className="flex items-center">
                   <Award size={20} className="mr-2" />
                   <span>Practice Session Completed</span>
@@ -495,7 +763,7 @@ const ResultView = ({ resultData, setView }) => {
             </div>
             <div className="text-right">
               <div className="text-4xl font-bold">{netScore.toFixed(2)}</div>
-              <div className="text-blue-200">Total Score</div>
+              <div className="text-blue-200 print:text-gray-600">Total Score</div>
             </div>
           </div>
         </div>
@@ -562,18 +830,27 @@ const ResultView = ({ resultData, setView }) => {
 
           {/* Question-wise Breakdown */}
           <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-200">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
               <div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Question-wise Analysis</h3>
                 <p className="text-gray-600">Detailed breakdown of each question attempt</p>
               </div>
-              <button 
-                onClick={() => setShowQuestionDetails(!showQuestionDetails)}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium transition-all flex items-center"
-              >
-                <BarChart3 size={20} className="mr-2" />
-                {showQuestionDetails ? 'Hide Questions' : 'Show All Questions'}
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setShowQuestionDetails(!showQuestionDetails)}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium transition-all flex items-center"
+                >
+                  <BarChart3 size={20} className="mr-2" />
+                  {showQuestionDetails ? 'Hide Questions' : 'Show All Questions'}
+                </button>
+                <button 
+                  onClick={generateFormattedPaper}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-all flex items-center"
+                >
+                  <Printer size={20} className="mr-2" />
+                  View Paper
+                </button>
+              </div>
             </div>
 
             {showQuestionDetails && r.questionWiseResults && (
@@ -581,7 +858,7 @@ const ResultView = ({ resultData, setView }) => {
                 {/* Section Filter */}
                 {sections.length > 0 && (
                   <div className="mb-6">
-                    <div className="flex items-center space-x-2 mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 mb-4">
                       <span className="text-gray-700 font-medium">Filter by Section:</span>
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -605,7 +882,7 @@ const ResultView = ({ resultData, setView }) => {
                 )}
 
                 {/* Question Summary Stats */}
-                <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                     <div className="text-lg font-bold text-green-700">{correctQuestions.length}</div>
                     <div className="text-sm text-gray-600">Correct Questions</div>
@@ -621,67 +898,125 @@ const ResultView = ({ resultData, setView }) => {
                 </div>
 
                 {/* Questions Table */}
-                <div className="overflow-x-auto rounded-lg border border-gray-300">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Q.No</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Section</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Marks</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Your Answer</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Correct Answer</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Marks Obtained</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredQuestions.map((question, idx) => (
-                        <tr 
-                          key={idx} 
-                          className={`hover:bg-gray-50 ${question.status === 'correct' ? 'bg-green-50' : question.status === 'wrong' ? 'bg-red-50' : 'bg-gray-50'}`}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-bold text-gray-900">Q{question.id}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-600">{question.section}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs rounded-full ${question.type === 'MCQ' ? 'bg-blue-100 text-blue-800' : question.type === 'MSQ' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
-                              {question.type}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="font-medium text-gray-900">{question.marks}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {formatAnswer(question.userAnswer, question)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-green-700">
-                              {question.correctAnswer || 'N/A'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${question.status === 'correct' ? 'bg-green-100 text-green-800' : question.status === 'wrong' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
-                              {question.status === 'correct' ? 'Correct' : 
-                               question.status === 'wrong' ? 'Wrong' : 
-                               'Not Attempted'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className={`font-bold ${question.marksObtained > 0 ? 'text-green-700' : question.marksObtained < 0 ? 'text-red-700' : 'text-gray-700'}`}>
-                              {question.marksObtained > 0 ? `+${question.marksObtained}` : question.marksObtained}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {/* Questions Table */}
+<div className="overflow-x-auto rounded-lg border border-gray-300">
+  <table className="min-w-full divide-y divide-gray-200">
+    <thead className="bg-gray-100">
+      <tr>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Q.No</th>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Section</th>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Marks</th>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Your Answer</th>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Correct Answer</th>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Marks</th>
+      </tr>
+    </thead>
+    <tbody className="bg-white divide-y divide-gray-200">
+      {filteredQuestions.map((question, idx) => (
+        <tr 
+          key={idx} 
+          className={`hover:bg-gray-50 ${question.status === 'correct' ? 'bg-green-50' : question.status === 'wrong' ? 'bg-red-50' : 'bg-gray-50'}`}
+        >
+          <td className="px-4 py-3 whitespace-nowrap">
+            <div className="font-bold text-gray-900">Q{question.id}</div>
+          </td>
+          <td className="px-4 py-3 whitespace-nowrap">
+            <span className="text-sm text-gray-600">{question.section}</span>
+          </td>
+          <td className="px-4 py-3 whitespace-nowrap">
+            <span className={`px-2 py-1 text-xs rounded-full ${question.type === 'MCQ' ? 'bg-blue-100 text-blue-800' : question.type === 'MSQ' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
+              {question.type}
+            </span>
+          </td>
+          <td className="px-4 py-3 whitespace-nowrap">
+            <span className="font-medium text-gray-900">{question.marks}</span>
+          </td>
+          <td className="px-4 py-3 whitespace-nowrap">
+            <div className="text-sm font-medium text-gray-900">
+              {formatAnswer(question.userAnswer, question)}
+            </div>
+          </td>
+          <td className="px-4 py-3 whitespace-nowrap">
+            <div className="text-sm font-medium text-green-700">
+              {(() => {
+                if (!question.correctAnswer && question.correctAnswer !== 0) return 'N/A';
+                const options = ['A', 'B', 'C', 'D'];
+                
+                if (question.type === 'MCQ') {
+                  // Handle MCQ answer - could be number, string, or letter
+                  const answer = question.correctAnswer;
+                  if (typeof answer === 'number') {
+                    return `Option ${options[answer] || answer}`;
+                  }
+                  
+                  const answerStr = String(answer);
+                  const num = parseInt(answerStr);
+                  if (!isNaN(num)) {
+                    return `Option ${options[num] || answerStr}`;
+                  }
+                  
+                  // Check if it's already a letter like "A", "B", etc.
+                  if (options.includes(answerStr.toUpperCase())) {
+                    return `Option ${answerStr.toUpperCase()}`;
+                  }
+                  
+                  return answerStr;
+                }
+                
+                if (question.type === 'MSQ') {
+                  // Handle MSQ answer - could be comma-separated string, array, or single value
+                  const answer = question.correctAnswer;
+                  
+                  if (Array.isArray(answer)) {
+                    return answer.map(a => {
+                      if (typeof a === 'number') {
+                        return `Option ${options[a] || a}`;
+                      }
+                      const num = parseInt(a);
+                      return !isNaN(num) ? `Option ${options[num] || a}` : a;
+                    }).join(', ');
+                  }
+                  
+                  const answerStr = String(answer);
+                  if (answerStr.includes(',')) {
+                    return answerStr.split(',').map(idx => {
+                      const numIdx = parseInt(idx.trim());
+                      return !isNaN(numIdx) ? `Option ${options[numIdx] || idx}` : idx;
+                    }).join(', ');
+                  }
+                  
+                  const num = parseInt(answerStr);
+                  if (!isNaN(num)) {
+                    return `Option ${options[num] || answerStr}`;
+                  }
+                  
+                  return answerStr;
+                }
+                
+                // For NAT questions or others
+                return String(question.correctAnswer);
+              })()}
+            </div>
+          </td>
+          <td className="px-4 py-3 whitespace-nowrap">
+            <span className={`px-2 py-1 text-xs rounded-full font-medium ${question.status === 'correct' ? 'bg-green-100 text-green-800' : question.status === 'wrong' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
+              {question.status === 'correct' ? 'Correct' : 
+               question.status === 'wrong' ? 'Wrong' : 
+               'Not Attempted'}
+            </span>
+          </td>
+          <td className="px-4 py-3 whitespace-nowrap">
+            <div className={`font-bold ${question.marksObtained > 0 ? 'text-green-700' : question.marksObtained < 0 ? 'text-red-700' : 'text-gray-700'}`}>
+              {question.marksObtained > 0 ? `+${question.marksObtained}` : question.marksObtained}
+            </div>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
 
                 {/* Wrong Questions Summary */}
                 {wrongQuestions.length > 0 && (
@@ -818,17 +1153,18 @@ const ResultView = ({ resultData, setView }) => {
               {isExiting ? 'Exiting...' : 'Practice Again'}
             </button>
             <button 
-              onClick={() => window.print()}
-              className="flex-1 py-3.5 bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg font-semibold transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center"
+              onClick={downloadAttemptedPaper}
+              className="flex-1 py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center"
             >
-              <FileText size={20} className="mr-2" />
-              Download Results
+              <Download size={20} className="mr-2" />
+              Download JSON
             </button>
             <button 
-              onClick={() => setView('login')}
-              className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+              onClick={generateFormattedPaper}
+              className="flex-1 py-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center"
             >
-              Back to Home
+              <FileText size={20} className="mr-2" />
+              View Formatted Paper
             </button>
           </div>
 
@@ -865,7 +1201,8 @@ export default function PreExamViews({
   view, setView, user, config, setConfig, 
   setQuestions, setAnswerKey, questionsLoaded, 
   onLogin, onStart, onBegin, resultData,
-  isLoading = false
+  isLoading = false,
+  yearOptions = []
 }) {
   switch(view) {
     case 'login': 
@@ -879,11 +1216,12 @@ export default function PreExamViews({
         questionsLoaded={questionsLoaded} 
         onStart={onStart}
         isLoading={isLoading}
+        yearOptions={yearOptions}
       />;
     case 'instructions': 
       return <InstructionsView config={config} onBegin={onBegin} isLoading={isLoading} />;
     case 'result': 
-      return <ResultView resultData={resultData} setView={setView} />;
+      return <ResultView resultData={resultData} setView={setView} config={config} user={user} />;
     default: 
       return null;
   }
