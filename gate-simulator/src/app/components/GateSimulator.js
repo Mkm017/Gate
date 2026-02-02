@@ -131,18 +131,28 @@ export default function GateSimulator() {
     };
   }, []);
 
-  // ACTIONS
-  const handleLogin = (pass) => {
+  // User credentials - Modified to only use passwords
+  const USER_CREDENTIALS = [
+    { password: "rs", name: "RS" },
+    { password: "mkm", name: "MKM" },
+    { password: "ij", name: "IJ" },
+    // Add more users as needed: { password: "pass", name: "Display Name" }
+  ];
+
+  // ACTIONS - Modified to only check password
+  const handleLogin = (credentials) => {
     setIsLoading(true);
     setTimeout(() => {
-      const PASSWORDS = { "rs": "RS", "mkm": "MKM" };
-      const normalizedPass = pass.trim().toLowerCase();
+      // Now credentials should contain just 'password' field
+      const user = USER_CREDENTIALS.find(u => 
+        u.password === credentials.password
+      );
       
-      if (PASSWORDS[normalizedPass]) {
-        setUser({ name: PASSWORDS[normalizedPass] });
+      if (user) {
+        setUser({ name: user.name });
         setView('setup');
       } else {
-        alert("Invalid Password. Please try again.");
+        alert("Invalid password. Please try again.");
       }
       setIsLoading(false);
     }, 100);
@@ -161,192 +171,217 @@ export default function GateSimulator() {
   };
 
   const handleExamSubmit = async (answers, timeTaken, qStatus) => {
-    setIsLoading(true);
-    
-    // Calculate Score with detailed breakdown
-    let totalScore = 0;
-    let attempted = 0;
-    let correct = 0;
-    let wrong = 0;
-    let oneMarkWrong = 0;
-    let twoMarkWrong = 0;
-    let negativeMarks = 0;
-    let totalPossibleScore = 0;
-    let markedForReview = 0;
-    let answeredAndMarked = 0;
-    
-    const questionWiseResults = [];
-    
-    questions.forEach(q => {
-      totalPossibleScore += q.marks;
+    try {
+      setIsLoading(true);
       
-      // Check if marked for review
-      const status = qStatus[q.id];
-      if (status === 3) markedForReview++;
-      if (status === 4) answeredAndMarked++;
+      // Calculate Score with detailed breakdown
+      let totalScore = 0;
+      let attempted = 0;
+      let correct = 0;
+      let wrong = 0;
+      let oneMarkWrong = 0;
+      let twoMarkWrong = 0;
+      let negativeMarks = 0;
+      let totalPossibleScore = 0;
+      let markedForReview = 0;
+      let answeredAndMarked = 0;
       
-      const userAns = answers[q.id];
-      const key = answerKey[q.id];
+      const questionWiseResults = [];
       
-      let result = {
-        id: q.id,
-        section: q.section,
-        type: q.type,
-        marks: q.marks,
-        question: q.question,
-        userAnswer: userAns,
-        correctAnswer: key,
-        isCorrect: false,
-        marksObtained: 0,
-        status: 'not_attempted'
+      questions.forEach(q => {
+        try {
+          totalPossibleScore += q.marks;
+          
+          // Check if marked for review
+          const status = qStatus[q.id];
+          if (status === 3) markedForReview++;
+          if (status === 4) answeredAndMarked++;
+          
+          const userAns = answers[q.id];
+          const key = answerKey[q.id];
+          
+          let result = {
+            id: q.id,
+            section: q.section,
+            type: q.type,
+            marks: q.marks,
+            question: q.question,
+            options: q.options,
+            userAnswer: userAns,
+            correctAnswer: key,
+            isCorrect: false,
+            marksObtained: 0,
+            status: 'not_attempted'
+          };
+          
+          if (userAns !== undefined && userAns !== "" && userAns !== null) {
+            attempted++;
+            result.status = 'attempted';
+            
+            if (key !== undefined) {
+              let isCorrect = false;
+              
+              // For MCQ
+              if (q.type === 'MCQ') {
+                const userAnsStr = String(userAns).trim();
+                const keyStr = String(key).trim();
+                const optionLetters = ['A', 'B', 'C', 'D'];
+                const userLetter = optionLetters[userAns];
+                
+                if (userLetter === keyStr || userAnsStr === keyStr || String(parseInt(userAns) + 1) === keyStr) {
+                  isCorrect = true;
+                }
+                
+                if (isCorrect) {
+                  totalScore += q.marks;
+                  correct++;
+                  result.isCorrect = true;
+                  result.marksObtained = q.marks;
+                  result.status = 'correct';
+                } else {
+                  wrong++;
+                  if (q.marks === 1) {
+                    oneMarkWrong++;
+                    negativeMarks += 1/3;
+                    totalScore -= 1/3;
+                    result.marksObtained = -1/3;
+                  } else if (q.marks === 2) {
+                    twoMarkWrong++;
+                    negativeMarks += 2/3;
+                    totalScore -= 2/3;
+                    result.marksObtained = -2/3;
+                  }
+                  result.status = 'wrong';
+                }
+              }
+              // For MSQ
+              else if (q.type === 'MSQ') {
+                const correctIndices = String(key).split(',').map(k => k.trim()).filter(k => k !== '');
+                const userIndices = Array.isArray(userAns) ? userAns : [userAns];
+                
+                const allCorrectSelected = correctIndices.every(idx => 
+                  userIndices.includes(parseInt(idx))
+                );
+                const noIncorrectSelected = userIndices.every(idx => 
+                  correctIndices.includes(String(idx))
+                );
+                
+                isCorrect = allCorrectSelected && noIncorrectSelected;
+                
+                if (isCorrect) {
+                  totalScore += q.marks;
+                  correct++;
+                  result.isCorrect = true;
+                  result.marksObtained = q.marks;
+                  result.status = 'correct';
+                } else {
+                  wrong++;
+                  result.status = 'wrong';
+                }
+              }
+              // For NAT
+              else if (q.type === 'NAT') {
+                const userAnsStr = String(userAns).trim();
+                const keyStr = String(key).trim();
+                
+                if (userAnsStr === keyStr) {
+                  isCorrect = true;
+                  totalScore += q.marks;
+                  correct++;
+                  result.isCorrect = true;
+                  result.marksObtained = q.marks;
+                  result.status = 'correct';
+                } else {
+                  wrong++;
+                  result.status = 'wrong';
+                }
+              }
+            }
+          }
+          
+          questionWiseResults.push(result);
+        } catch (err) {
+          console.error(`Error processing question ${q.id}:`, err);
+          questionWiseResults.push({
+            id: q.id,
+            section: q.section,
+            type: q.type,
+            marks: q.marks,
+            question: q.question,
+            userAnswer: answers[q.id],
+            correctAnswer: answerKey[q.id],
+            isCorrect: false,
+            marksObtained: 0,
+            status: 'error'
+          });
+        }
+      });
+      
+      // Ensure score is not negative
+      totalScore = Math.max(0, totalScore);
+      
+      const finalResult = { 
+        score: totalScore.toFixed(2),
+        totalPossibleScore,
+        attempted, 
+        correct, 
+        wrong,
+        oneMarkWrong,
+        twoMarkWrong,
+        negativeMarks: negativeMarks.toFixed(2),
+        totalQuestions: questions.length,
+        percentage: ((totalScore / totalPossibleScore) * 100).toFixed(2),
+        timeTaken,
+        markedForReview,
+        answeredAndMarked,
+        questionWiseResults,
+        sections: [...new Set(questions.map(q => q.section))].map(section => {
+          const sectionQuestions = questions.filter(q => q.section === section);
+          const sectionResults = questionWiseResults.filter(r => r.section === section);
+          const sectionScore = sectionResults.reduce((sum, r) => sum + (r.marksObtained > 0 ? r.marksObtained : 0), 0);
+          const sectionPossible = sectionQuestions.reduce((sum, q) => sum + q.marks, 0);
+          
+          return {
+            name: section,
+            score: sectionScore.toFixed(2),
+            possible: sectionPossible,
+            percentage: ((sectionScore / sectionPossible) * 100).toFixed(2),
+            attempted: sectionResults.filter(r => r.status !== 'not_attempted').length,
+            correct: sectionResults.filter(r => r.status === 'correct').length,
+            wrong: sectionResults.filter(r => r.status === 'wrong').length
+          };
+        })
       };
       
-      if (userAns !== undefined && userAns !== "" && userAns !== null) {
-        attempted++;
-        result.status = 'attempted';
-        
-        if (key !== undefined) {
-          let isCorrect = false;
-          
-          // For MCQ
-          if (q.type === 'MCQ') {
-            const userAnsStr = String(userAns).trim();
-            const keyStr = String(key).trim();
-            const optionLetters = ['A', 'B', 'C', 'D'];
-            const userLetter = optionLetters[userAns];
-            
-            if (userLetter === keyStr || userAnsStr === keyStr || String(parseInt(userAns) + 1) === keyStr) {
-              isCorrect = true;
-            }
-            
-            if (isCorrect) {
-              totalScore += q.marks;
-              correct++;
-              result.isCorrect = true;
-              result.marksObtained = q.marks;
-              result.status = 'correct';
-            } else {
-              wrong++;
-              if (q.marks === 1) {
-                oneMarkWrong++;
-                negativeMarks += 1/3;
-                totalScore -= 1/3;
-                result.marksObtained = -1/3;
-              } else if (q.marks === 2) {
-                twoMarkWrong++;
-                negativeMarks += 2/3;
-                totalScore -= 2/3;
-                result.marksObtained = -2/3;
-              }
-              result.status = 'wrong';
-            }
-          }
-          // For MSQ
-          else if (q.type === 'MSQ') {
-            const correctIndices = key.split(',').map(k => k.trim()).filter(k => k !== '');
-            const userIndices = Array.isArray(userAns) ? userAns : [userAns];
-            
-            const allCorrectSelected = correctIndices.every(idx => 
-              userIndices.includes(parseInt(idx))
-            );
-            const noIncorrectSelected = userIndices.every(idx => 
-              correctIndices.includes(String(idx))
-            );
-            
-            isCorrect = allCorrectSelected && noIncorrectSelected;
-            
-            if (isCorrect) {
-              totalScore += q.marks;
-              correct++;
-              result.isCorrect = true;
-              result.marksObtained = q.marks;
-              result.status = 'correct';
-            } else {
-              wrong++;
-              result.status = 'wrong';
-            }
-          }
-          // For NAT
-          else if (q.type === 'NAT') {
-            const userAnsStr = String(userAns).trim();
-            const keyStr = String(key).trim();
-            
-            if (userAnsStr === keyStr) {
-              isCorrect = true;
-              totalScore += q.marks;
-              correct++;
-              result.isCorrect = true;
-              result.marksObtained = q.marks;
-              result.status = 'correct';
-            } else {
-              wrong++;
-              result.status = 'wrong';
-            }
-          }
-        }
-      }
-      
-      questionWiseResults.push(result);
-    });
-    
-    // Ensure score is not negative
-    totalScore = Math.max(0, totalScore);
-    
-    const finalResult = { 
-      score: totalScore.toFixed(2),
-      totalPossibleScore,
-      attempted, 
-      correct, 
-      wrong,
-      oneMarkWrong,
-      twoMarkWrong,
-      negativeMarks: negativeMarks.toFixed(2),
-      totalQuestions: questions.length,
-      percentage: ((totalScore / totalPossibleScore) * 100).toFixed(2),
-      timeTaken,
-      markedForReview,
-      answeredAndMarked,
-      questionWiseResults,
-      sections: [...new Set(questions.map(q => q.section))].map(section => {
-        const sectionQuestions = questions.filter(q => q.section === section);
-        const sectionResults = questionWiseResults.filter(r => r.section === section);
-        const sectionScore = sectionResults.reduce((sum, r) => sum + (r.marksObtained > 0 ? r.marksObtained : 0), 0);
-        const sectionPossible = sectionQuestions.reduce((sum, q) => sum + q.marks, 0);
-        
-        return {
-          name: section,
-          score: sectionScore.toFixed(2),
-          possible: sectionPossible,
-          percentage: ((sectionScore / sectionPossible) * 100).toFixed(2),
-          attempted: sectionResults.filter(r => r.status !== 'not_attempted').length,
-          correct: sectionResults.filter(r => r.status === 'correct').length,
-          wrong: sectionResults.filter(r => r.status === 'wrong').length
-        };
-      })
-    };
-    
-    setResultData(finalResult);
+      setResultData(finalResult);
 
-    // Try to save to Firebase if available
-    if (firebaseInitialized && db && user) {
-      try {
-        const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
-        await addDoc(collection(db, "exam_results"), {
-          userName: user.name,
-          examDetails: config,
-          result: finalResult,
-          timeTaken,
-          timestamp: serverTimestamp()
-        });
-        console.log("Results saved to Firebase");
-      } catch(e) { 
-        console.log("Firebase save failed:", e.message);
+      // Switch to result view immediately
+      setView('result');
+      setIsLoading(false);
+
+      // Try to save to Firebase if available (non-blocking)
+      if (firebaseInitialized && db && user) {
+        (async () => {
+          try {
+            const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+            await addDoc(collection(db, "exam_results"), {
+              userName: user.name,
+              examDetails: config,
+              result: finalResult,
+              timeTaken,
+              timestamp: serverTimestamp()
+            });
+            console.log("Results saved to Firebase");
+          } catch(e) { 
+            console.log("Firebase save failed:", e.message);
+          }
+        })();
       }
+    } catch (error) {
+      console.error("Error in exam submission:", error);
+      alert("An error occurred during submission. Please try again.");
+      setIsLoading(false);
     }
-
-    // Switch to result view
-    setView('result');
-    setIsLoading(false);
   };
 
   // RENDER
@@ -356,6 +391,7 @@ export default function GateSimulator() {
         user={user} 
         config={config} 
         questions={questions} 
+        answerKey={answerKey}
         onSubmit={handleExamSubmit} 
       />
     );

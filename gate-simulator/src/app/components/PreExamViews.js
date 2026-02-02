@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Check, Upload, FileText, X, CheckCircle, Loader2, Award, BarChart3, Clock, Calendar, User, BookOpen, Target, Percent, Trophy, Download, Printer } from 'lucide-react';
 
 const LoginView = ({ onLogin, isLoading }) => {
-  const [pass, setPass] = useState('');
+  const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = (e) => {
@@ -12,7 +12,7 @@ const LoginView = ({ onLogin, isLoading }) => {
     
     setIsSubmitting(true);
     setTimeout(() => {
-      onLogin(pass);
+      onLogin({ password: password.trim() });
       setIsSubmitting(false);
     }, 50);
   };
@@ -21,8 +21,8 @@ const LoginView = ({ onLogin, isLoading }) => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 font-sans">
       <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-200">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Trophy size={32} className="text-white" />
+          <div className="w-35 h-35 flex items-center justify-center mx-auto mb-4">
+            <img src="/icon.png" alt="GATE Simulator" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">GATE Simulator</h1>
           <p className="text-gray-600 mt-2">Practice like the real exam</p>
@@ -30,13 +30,13 @@ const LoginView = ({ onLogin, isLoading }) => {
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Enter Password</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
             <input 
               type="password" 
-              value={pass} 
-              onChange={e => setPass(e.target.value)} 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
-              placeholder="Password"
+              placeholder="Enter password"
               autoFocus
             />
           </div>
@@ -135,7 +135,7 @@ const SetupView = ({ config, setConfig, setQuestions, setAnswerKey, questionsLoa
                 value={config.year} 
                 onChange={e => setConfig({...config, year: e.target.value})}
               >
-                {yearOptions.map(y => 
+                {yearOptions.slice().reverse().map(y => 
                   <option key={y} value={y}>{y}</option>
                 )}
               </select>
@@ -411,6 +411,7 @@ const ResultView = ({ resultData, setView, config, user }) => {
   const [isExiting, setIsExiting] = useState(false);
   const [showQuestionDetails, setShowQuestionDetails] = useState(false);
   const [selectedSection, setSelectedSection] = useState('all');
+  const [selectedQuestion, setSelectedQuestion] = useState(null);
 
   const handleExit = () => {
     setIsExiting(true);
@@ -508,14 +509,23 @@ const ResultView = ({ resultData, setView, config, user }) => {
 const generateFormattedPaper = () => {
   const optionsMap = ['A', 'B', 'C', 'D'];
   
+  // Calculate correct counts by type and marks
+  const correct1MMCQ = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'MCQ' && q.marks === 1).length;
+  const correct2MMCQ = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'MCQ' && q.marks === 2).length;
+  const correct1MMSQ = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'MSQ' && q.marks === 1).length;
+  const correct2MMSQ = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'MSQ' && q.marks === 2).length;
+  const correct1MNAT = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'NAT' && q.marks === 1).length;
+  const correct2MNAT = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'NAT' && q.marks === 2).length;
+  
   const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GATE ${config.year} - ${config.subject} - Attempted Paper</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; }
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; width: auto; max-width: none; }
         .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #003366; padding-bottom: 20px; }
         .header h1 { color: #003366; margin: 0; }
         .header .subtitle { color: #666; font-size: 14px; }
@@ -532,7 +542,8 @@ const generateFormattedPaper = () => {
         .options { margin: 15px 0; }
         .option { padding: 8px 12px; margin: 5px 0; border-radius: 4px; border-left: 4px solid #ddd; }
         .option-user { background: #e3f2fd; border-left-color: #2196F3; }
-        .option-correct { background: #e8f5e9; border-left-color: #4CAF50; }
+        .option-correct { background: #e3f2fd; border-left-color: #2196F3; }
+        .option-wrong { background: #e3f2fd; border-left-color:#2196F3; }
         .option-both { background: #c8e6c9; border-left-color: #2E7D32; font-weight: bold; }
         .answer-section { margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 4px; }
         .answer-label { font-weight: bold; color: #666; }
@@ -542,6 +553,20 @@ const generateFormattedPaper = () => {
             body { margin: 20px; }
             .question { border: 1px solid #000; }
             .no-print { display: none; }
+        }
+        @media (max-width: 768px) {
+            body { margin: 5px; font-size: 12px; line-height: 1.4; }
+            .header { margin-bottom: 15px; padding-bottom: 10px; }
+            .header h1 { font-size: 18px; }
+            .header .subtitle { font-size: 11px; }
+            .user-info { padding: 8px; margin-bottom: 10px; }
+            .question { padding: 10px; margin-bottom: 10px; }
+            .question-number { font-size: 14px; }
+            .question-status { font-size: 10px; padding: 3px 6px; }
+            .option { padding: 4px 6px; margin: 2px 0; font-size: 11px; }
+            .section-header { padding: 6px; margin: 15px 0 8px 0; font-size: 14px; }
+            .footer { margin-top: 15px; padding-top: 10px; font-size: 10px; }
+            .answer-section { padding: 6px; font-size: 11px; }
         }
     </style>
 </head>
@@ -557,7 +582,19 @@ const generateFormattedPaper = () => {
         Score: ${r.score}/${r.totalPossibleScore} (${((parseFloat(r.score) / r.totalPossibleScore) * 100).toFixed(1)}%)<br>
         Accuracy: ${r.attempted > 0 ? ((r.correct / r.attempted) * 100).toFixed(1) : 0}%<br>
         Questions: ${r.correct} Correct, ${r.wrong} Wrong, ${r.totalQuestions - r.attempted} Not Attempted<br>
-        Time Taken: ${r.timeTaken ? Math.floor(r.timeTaken / 60) + ':' + String(r.timeTaken % 60).padStart(2, '0') : 'N/A'}
+        Time Taken: ${r.timeTaken ? Math.floor(r.timeTaken / 60) + ':' + String(r.timeTaken % 60).padStart(2, '0') : 'N/A'}<br>
+        <br>
+        <strong>Detailed Breakdown:</strong><br>
+        Total Correct Marks Earned: ${r.questionWiseResults.filter(q => q.status === 'correct').reduce((sum, q) => sum + q.marks, 0)}<br>
+        Total Negative Marks: ${r.negativeMarks}<br>
+        1-Mark Questions: ${r.questionWiseResults.filter(q => q.marks === 1 && q.status === 'correct').length} correct, ${r.oneMarkWrong} wrong<br>
+        2-Mark Questions: ${r.questionWiseResults.filter(q => q.marks === 2 && q.status === 'correct').length} correct, ${r.twoMarkWrong} wrong<br>
+        MSQ Questions: ${r.questionWiseResults.filter(q => q.type === 'MSQ' && q.status === 'correct').length} correct, ${r.questionWiseResults.filter(q => q.type === 'MSQ' && q.status === 'wrong').length} wrong<br>
+        NAT Questions: ${r.questionWiseResults.filter(q => q.type === 'NAT' && q.status === 'correct').length} correct, ${r.questionWiseResults.filter(q => q.type === 'NAT' && q.status === 'wrong').length} wrong<br>
+        Marked for Review: ${r.markedForReview}, Answered and Marked: ${r.answeredAndMarked}<br>
+        <br>
+        <strong>Correct Questions by Type:</strong><br>
+        1M MCQ: ${correct1MMCQ}, 2M MCQ: ${correct2MMCQ}, 1M MSQ: ${correct1MMSQ}, 2M MSQ: ${correct2MMSQ}, 1M NAT: ${correct1MNAT}, 2M NAT: ${correct2MNAT}
     </div>
     
     ${r.questionWiseResults && r.questionWiseResults.length > 0 ? 
@@ -643,6 +680,32 @@ const generateFormattedPaper = () => {
                     </div>
                 </div>
                 <div class="question-text">${q.question ? q.question.replace(/\n/g, '<br>') : 'No question text'}</div>
+                ${q.options && q.options.length > 0 ? `
+                <div>Has options: yes, length: ${q.options.length}</div>
+                <div class="options">
+                  ${q.options.map((option, idx) => {
+                    const optionLetter = String.fromCharCode(65 + idx);
+                    let className = 'option';
+                    let isCorrect = false;
+                    let isUser = false;
+                    
+                    if (q.type === 'MCQ') {
+                      if (q.correctAnswer && parseInt(q.correctAnswer) === idx) isCorrect = true;
+                      if (q.userAnswer !== undefined && q.userAnswer !== null && parseInt(q.userAnswer) === idx) isUser = true;
+                    } else if (q.type === 'MSQ') {
+                      const correctIndices = q.correctAnswer ? String(q.correctAnswer).split(',').map(k => parseInt(k.trim())) : [];
+                      if (correctIndices.includes(idx)) isCorrect = true;
+                      const userIndices = Array.isArray(q.userAnswer) ? q.userAnswer : [];
+                      if (userIndices.includes(idx)) isUser = true;
+                    }
+                    
+                    if (isCorrect) className += ' option-correct';
+                    if (isUser && !isCorrect) className += ' option-wrong';
+                    
+                    return `<div class="${className}">${optionLetter}. ${option}</div>`;
+                  }).join('')}
+                </div>
+                ` : '<div>No options</div>'}
                 <div class="answer-section">
                     <div><span class="answer-label">Your Answer:</span> ${formatUserAnswer(q)}</div>
                     ${q.correctAnswer ? `<div><span class="answer-label">Correct Answer:</span> ${
@@ -686,6 +749,14 @@ const generateFormattedPaper = () => {
   };
 
   const performance = getPerformanceLevel();
+
+  // Calculate correct counts by type and marks
+  const correct1MMCQ = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'MCQ' && q.marks === 1).length;
+  const correct2MMCQ = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'MCQ' && q.marks === 2).length;
+  const correct1MMSQ = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'MSQ' && q.marks === 1).length;
+  const correct2MMSQ = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'MSQ' && q.marks === 2).length;
+  const correct1MNAT = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'NAT' && q.marks === 1).length;
+  const correct2MNAT = r.questionWiseResults.filter(q => q.status === 'correct' && q.type === 'NAT' && q.marks === 2).length;
 
   // Get unique sections from question-wise results
   const sections = r.questionWiseResults ? 
@@ -770,6 +841,44 @@ const formatAnswer = (answer, question) => {
 
         {/* Main Content */}
         <div className="p-8">
+          {/* Result Summary */}
+          <div className="mb-10 text-center">
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-8 rounded-2xl shadow-lg">
+              <h2 className="text-2xl font-bold mb-4">Exam Result Summary</h2>
+              <div className="text-4xl md:text-6xl font-bold mb-2">{netScore.toFixed(2)} / {totalMarks}</div>
+              <div className="text-xl mb-4">{scorePercentage}% Score</div>
+              <div className="flex flex-col md:flex-row justify-center md:space-x-8 space-y-4 md:space-y-0 text-lg">
+                <div>
+                  <div className="font-bold">{r.correct}</div>
+                  <div className="text-green-200">Correct</div>
+                </div>
+                <div>
+                  <div className="font-bold">{r.wrong}</div>
+                  <div className="text-red-200">Wrong</div>
+                </div>
+                <div>
+                  <div className="font-bold">{r.totalQuestions - r.attempted}</div>
+                  <div className="text-gray-300">Not Attempted</div>
+                </div>
+              </div>
+              <div className="mt-4 text-base md:text-lg">
+                <span className="font-semibold">Accuracy:</span> {accuracy}% | 
+                <span className="font-semibold ml-4">Negative Marks:</span> {r.negativeMarks}
+              </div>
+              <div className="mt-4 text-sm md:text-base">
+                <div className="font-semibold mb-2">Correct Questions by Type:</div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs md:text-sm">
+                  <div>1M MCQ: {correct1MMCQ}</div>
+                  <div>2M MCQ: {correct2MMCQ}</div>
+                  <div>1M MSQ: {correct1MMSQ}</div>
+                  <div>2M MSQ: {correct2MMSQ}</div>
+                  <div>1M NAT: {correct1MNAT}</div>
+                  <div>2M NAT: {correct2MNAT}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Performance Summary */}
           <div className="mb-10">
             <div className={`p-6 rounded-xl ${performance.bg} ${performance.border} border-2`}>
@@ -785,7 +894,45 @@ const formatAnswer = (answer, question) => {
                   <div className="text-gray-600">Correct/Attempted</div>
                 </div>
               </div>
-              <div className="mt-4">
+              
+              {/* Performance by Question Type */}
+              <div className="mt-6">
+                <h4 className="text-lg font-bold text-gray-900 mb-4">Performance by Question Type</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="text-sm font-semibold text-blue-800">1-Mark MCQ</div>
+                    <div className="text-2xl font-bold text-blue-700">{correct1MMCQ}</div>
+                    <div className="text-xs text-blue-600">Correct</div>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="text-sm font-semibold text-blue-800">2-Mark MCQ</div>
+                    <div className="text-2xl font-bold text-blue-700">{correct2MMCQ}</div>
+                    <div className="text-xs text-blue-600">Correct</div>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <div className="text-sm font-semibold text-purple-800">1-Mark MSQ</div>
+                    <div className="text-2xl font-bold text-purple-700">{correct1MMSQ}</div>
+                    <div className="text-xs text-purple-600">Correct</div>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <div className="text-sm font-semibold text-purple-800">2-Mark MSQ</div>
+                    <div className="text-2xl font-bold text-purple-700">{correct2MMSQ}</div>
+                    <div className="text-xs text-purple-600">Correct</div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="text-sm font-semibold text-green-800">1-Mark NAT</div>
+                    <div className="text-2xl font-bold text-green-700">{correct1MNAT}</div>
+                    <div className="text-xs text-green-600">Correct</div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="text-sm font-semibold text-green-800">2-Mark NAT</div>
+                    <div className="text-2xl font-bold text-green-700">{correct2MNAT}</div>
+                    <div className="text-xs text-green-600">Correct</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6">
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div 
                     className="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transition-all duration-1000"
@@ -793,8 +940,8 @@ const formatAnswer = (answer, question) => {
                   ></div>
                 </div>
                 <div className="flex justify-between text-sm text-gray-600 mt-2">
-                  <span>0</span>
-                  <span>Target: 50%</span>
+                  <span>0%</span>
+                  <span>Score: {scorePercentage}%</span>
                   <span>100%</span>
                 </div>
               </div>
@@ -911,6 +1058,7 @@ const formatAnswer = (answer, question) => {
         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Correct Answer</th>
         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Marks</th>
+        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Details</th>
       </tr>
     </thead>
     <tbody className="bg-white divide-y divide-gray-200">
@@ -1011,6 +1159,14 @@ const formatAnswer = (answer, question) => {
             <div className={`font-bold ${question.marksObtained > 0 ? 'text-green-700' : question.marksObtained < 0 ? 'text-red-700' : 'text-gray-700'}`}>
               {question.marksObtained > 0 ? `+${question.marksObtained}` : question.marksObtained}
             </div>
+          </td>
+          <td className="px-4 py-3 whitespace-nowrap">
+            <button 
+              onClick={() => setSelectedQuestion(question)}
+              className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200 transition-colors"
+            >
+              Details
+            </button>
           </td>
         </tr>
       ))}
@@ -1179,6 +1335,81 @@ const formatAnswer = (answer, question) => {
           </div>
         </div>
       </div>
+
+      {/* Question Details Modal */}
+      {selectedQuestion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Question {selectedQuestion.id} Details</h3>
+                <button 
+                  onClick={() => setSelectedQuestion(null)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-gray-900 font-medium mb-2">{selectedQuestion.question}</p>
+                {selectedQuestion.options && selectedQuestion.options.length > 0 && (
+                  <div className="space-y-2">
+                    {selectedQuestion.options.map((option, idx) => {
+                      // Parse correct answers
+                      const correctAnswers = String(selectedQuestion.correctAnswer).split(',').map(k => k.trim());
+                      const isCorrect = correctAnswers.includes(String(idx));
+                      
+                      // Check user answers
+                      let isUserAnswer = false;
+                      if (selectedQuestion.type === 'MSQ') {
+                        const userIndices = Array.isArray(selectedQuestion.userAnswer) ? selectedQuestion.userAnswer : [selectedQuestion.userAnswer];
+                        isUserAnswer = userIndices.includes(idx);
+                      } else {
+                        isUserAnswer = selectedQuestion.userAnswer == idx;
+                      }
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`p-2 rounded border ${
+                            isCorrect ? 'bg-green-50 border-green-200' : 
+                            isUserAnswer && !isCorrect ? 'bg-red-50 border-red-200' : 
+                            'bg-gray-50 border-gray-200'
+                          }`}
+                        >
+                          <span className="font-medium">{String.fromCharCode(65 + idx)}.</span> {option}
+                          {isCorrect && <span className="ml-2 text-green-600 font-bold">✓ Correct</span>}
+                          {isUserAnswer && !isCorrect && <span className="ml-2 text-red-600 font-bold">✗ Your Answer</span>}
+                          {isUserAnswer && isCorrect && <span className="ml-2 text-green-600 font-bold">✓ Your Answer</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">Your Answer:</span> {formatAnswer(selectedQuestion.userAnswer, selectedQuestion)}
+                </div>
+                <div>
+                  <span className="font-medium">Correct Answer:</span> {formatAnswer(selectedQuestion.correctAnswer, selectedQuestion)}
+                </div>
+                <div>
+                  <span className="font-medium">Status:</span> 
+                  <span className={`ml-1 px-2 py-1 text-xs rounded-full ${selectedQuestion.status === 'correct' ? 'bg-green-100 text-green-800' : selectedQuestion.status === 'wrong' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {selectedQuestion.status}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium">Marks Obtained:</span> {selectedQuestion.marksObtained}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

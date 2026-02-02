@@ -51,7 +51,7 @@ const Notification = ({ message, type = 'info', onClose }) => {
   if (!visible) return null;
 
   return (
-    <div className={`fixed top-4 right-4 z-[100] p-3 rounded-lg border ${bgColor} shadow-lg transition-all duration-200 animate-slideIn max-w-sm`}>
+    <div className={`fixed top-20 right-4 z-[100] p-3 rounded-lg border ${bgColor} shadow-lg transition-all duration-200 animate-slideIn max-w-sm`}>
       <div className="flex items-start space-x-3">
         <Icon size={20} className={`${iconColor} flex-shrink-0 mt-0.5`} />
         <div className="flex-1 min-w-0">
@@ -127,7 +127,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText 
 };
 
 // Question Paper Modal Component
-const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus, user, config }) => {
+const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus, user, config, answerKey }) => {
   const sections = [...new Set(questions.map(q => q.section))];
   const [selectedSection, setSelectedSection] = useState(sections[0] || '');
 
@@ -260,17 +260,31 @@ const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus, user
                   
                   <p className="text-gray-800 mb-3 line-clamp-3">{q.question}</p>
                   
-                  {q.type === 'MCQ' && q.options && (
-                    <div className="space-y-2 text-sm">
-                      {q.options.map((opt, optIdx) => (
-                        <div key={optIdx} className={`flex items-center space-x-2 p-2 rounded ${userAnswer === optIdx ? 'bg-blue-50 border border-blue-200' : ''}`}>
-                          <div className={`w-4 h-4 rounded border ${userAnswer === optIdx ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
-                          <span className="text-gray-700">{opt}</span>
-                          {userAnswer === optIdx && (
-                            <span className="ml-auto text-xs font-medium text-blue-600">Your Answer</span>
-                          )}
-                        </div>
-                      ))}
+                  {q.options && q.options.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      {q.options.map((option, optIdx) => {
+                        const optionLetter = String.fromCharCode(65 + optIdx); // A, B, C, D
+                        const isSelected = answers[q.id] !== undefined && (
+                          q.type === 'MCQ' ? answers[q.id] == optIdx : answers[q.id].includes(optIdx)
+                        );
+                        let isCorrect = false;
+                        if (answerKey[q.id]) {
+                          if (q.type === 'MCQ') {
+                            isCorrect = parseInt(answerKey[q.id]) === optIdx;
+                          } else if (q.type === 'MSQ') {
+                            const correctIndices = String(answerKey[q.id]).split(',').map(k => parseInt(k.trim()));
+                            isCorrect = correctIndices.includes(optIdx);
+                          }
+                        }
+                        return (
+                          <div key={optIdx} className={`flex items-start space-x-3 p-2 rounded ${isCorrect ? 'bg-green-50 border border-green-200' : isSelected ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${isCorrect ? 'bg-green-600 text-white' : isSelected ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-700'}`}>
+                              {optionLetter}
+                            </div>
+                            <div className="flex-1 text-sm">{option}</div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   
@@ -306,6 +320,8 @@ const QuestionPaperModal = ({ isOpen, onClose, questions, answers, qStatus, user
             <div className="flex items-center space-x-2"><div className="w-3 h-3 bg-red-500 rounded-sm"></div><span>Not Answered</span></div>
             <div className="flex items-center space-x-2"><div className="w-3 h-3 bg-purple-500 rounded-full"></div><span>Marked for Review</span></div>
             <div className="flex items-center space-x-2"><div className="w-3 h-3 bg-gray-300 border border-gray-400 rounded-sm"></div><span>Not Visited</span></div>
+            <div className="flex items-center space-x-2"><div className="w-3 h-3 bg-green-600 rounded-full"></div><span>Correct Answer</span></div>
+            <div className="flex items-center space-x-2"><div className="w-3 h-3 bg-blue-600 rounded-full"></div><span>Your Answer</span></div>
           </div>
         </div>
       </div>
@@ -322,7 +338,7 @@ const formatTime = (s) => {
 };
 
 // Main Exam Interface Component
-export default function ExamInterface({ user, config, questions = [], onSubmit }) {
+export default function ExamInterface({ user, config, questions = [], answerKey = {}, onSubmit }) {
   // Derive sections
   const sections = [...new Set(questions.map(q => q.section))];
   const initialSection = sections.includes("General Aptitude") ? "General Aptitude" : sections[0];
@@ -661,10 +677,11 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
         qStatus={qStatus}
         user={user}
         config={config}
+        answerKey={answerKey}
       />
 
       {/* HEADER */}
-      <header className="h-16 flex justify-between items-center px-4 md:px-6 bg-white shrink-0 border-b border-gray-300">
+      <header className="h-20 md:h-16 flex justify-between items-center px-4 md:px-6 bg-white shrink-0 border-b border-gray-300">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setShowSidebar(!showSidebar)} 
@@ -700,7 +717,14 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
             }`}
           >
             {isTimerPaused ? <Play size={14} /> : <Pause size={14} />}
-            <span>{isTimerPaused ? 'Resume' : 'Pause'}</span>
+            <span className="hidden md:inline">{isTimerPaused ? 'Resume' : 'Pause'}</span>
+          </button>
+          <button
+            onClick={() => handleSubmit(false)}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition-colors active:scale-95 flex items-center space-x-1"
+          >
+            <X size={14} />
+            <span className="hidden md:inline">Submit</span>
           </button>
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center border border-gray-300 overflow-hidden">
@@ -792,7 +816,7 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
                             <button 
                               key={k} 
                               onClick={() => setAnswers({...answers, [currentQ.id]: (answers[currentQ.id]||"") + k})} 
-                              className="w-12 h-12 border border-gray-300 rounded bg-white hover:bg-gray-50 font-bold text-xl text-gray-700 transition-colors active:scale-95"
+                              className="w-12 h-12 md:w-12 md:h-12 border border-gray-300 rounded bg-white hover:bg-gray-50 font-bold text-xl text-gray-700 transition-colors active:scale-95 touch-target"
                             >
                               {k}
                             </button>
@@ -848,7 +872,7 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
               </div>
 
               {/* Bottom Nav Bar */}
-              <div className="flex flex-wrap gap-2 justify-between items-center p-3 md:p-4 border-t border-gray-300 bg-white flex-shrink-0">
+              <div className="flex flex-wrap gap-1 justify-between items-center p-3 md:p-4 border-t border-gray-300 bg-white flex-shrink-0">
                 <div className="flex flex-wrap gap-2 justify-start">
                   <button 
                     onClick={handlePrevious}
@@ -879,12 +903,20 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
                   </button>
                 </div>
                 
-                <button 
-                  onClick={saveAndNext}
-                  className="flex items-center px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm transition-colors active:scale-95"
-                >
-                  Save & Next <ChevronRight size={16} className="ml-1"/>
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={saveAndNext}
+                    className="flex items-center px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm transition-colors active:scale-95"
+                  >
+                    Save & Next <ChevronRight size={16} className="ml-1"/>
+                  </button>
+                  <button 
+                    onClick={() => handleSubmit(false)}
+                    className="flex items-center px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium text-sm transition-colors active:scale-95"
+                  >
+                    <Award size={16} className="mr-1"/> Submit Exam
+                  </button>
+                </div>
               </div>
             </>
           ) : (
@@ -941,7 +973,7 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
           </div>
           
           <div className="flex-1 overflow-y-auto bg-white p-4">
-            <div className="grid grid-cols-4 md:grid-cols-4 gap-3 place-items-center">
+            <div className="grid grid-cols-5 md:grid-cols-4 gap-3 place-items-center">
               {sectionQuestions.map((q, idx) => {
                 const status = qStatus[q.id];
                 const { className } = getPaletteStyles(status);
@@ -953,7 +985,7 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
                   <button 
                     key={q.id} 
                     onClick={() => changeQuestion(idx)}
-                    className={`${className} ${isCurrent ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''} hover:opacity-90 active:scale-95 transition-transform`}
+                    className={`${className} ${isCurrent ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''} hover:opacity-90 active:scale-95 transition-transform min-w-12 min-h-12 flex items-center justify-center`}
                     title={`Question ${globalIndex}`}
                   >
                     {globalIndex}
@@ -969,12 +1001,12 @@ export default function ExamInterface({ user, config, questions = [], onSubmit }
           </div>
           
           {/* Legend */}
-          <div className="p-3 bg-white border-t border-gray-200 text-[10px] text-gray-700 grid grid-cols-2 gap-2 flex-shrink-0">
+          <div className="p-3 bg-white border-t border-gray-200 text-xs text-gray-700 grid grid-cols-1 md:grid-cols-2 gap-2 flex-shrink-0">
             <div className="flex items-center space-x-2"><div className="w-4 h-4 bg-[#4CAF50] clip-pentagon-up"></div><span>Answered</span></div>
             <div className="flex items-center space-x-2"><div className="w-4 h-4 bg-[#FF5252] clip-pentagon-down"></div><span>Not Answered</span></div>
             <div className="flex items-center space-x-2"><div className="w-4 h-4 bg-[#E0E0E0] border border-gray-400 rounded-sm"></div><span>Not Visited</span></div>
             <div className="flex items-center space-x-2"><div className="w-4 h-4 bg-[#7E57C2] rounded-full"></div><span>Marked for Review</span></div>
-            <div className="col-span-2 flex items-center space-x-2">
+            <div className="col-span-1 md:col-span-2 flex items-center space-x-2">
               <div className="relative w-4 h-4 bg-[#7E57C2] rounded-full mr-1">
                 <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white"></div>
               </div>
