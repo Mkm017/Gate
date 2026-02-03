@@ -21,7 +21,7 @@ const LoginView = ({ onLogin, isLoading }) => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 font-sans">
       <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-200">
         <div className="text-center mb-8">
-          <div className="w-35 h-35 flex items-center justify-center mx-auto mb-4">
+          <div className="w-40 h-40 flex items-center justify-center mx-auto mb-4">
             <img src="/icon.png" alt="GATE Simulator" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">GATE Simulator</h1>
