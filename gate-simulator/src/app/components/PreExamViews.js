@@ -621,6 +621,13 @@ body {
   font-size: clamp(16px, 2vw, 18px);
 }
 
+.question-type {
+  font-size: clamp(12px, 1.5vw, 13px);
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}
+
 .question-status { 
   font-size: clamp(11px, 1.5vw, 12px); 
   padding: 6px 12px; 
@@ -671,6 +678,7 @@ body {
 .option-user-correct { background: #e8f5e9; border-left-color: #4caf50; font-weight: bold; }
 .option-user-wrong { background: #fdecea; border-left-color: #f44336; font-weight: bold; }
 .option-user-neutral { background: #e3f2fd; border-left-color: #2196f3; }
+.option-not-attempted-correct { background: #e3f2fd; border-left-color: #2196f3; font-weight: bold; }
 
 .answer-section { 
   margin-top: 15px; 
@@ -856,11 +864,17 @@ ${Object.entries(
 ${qs.map(q=>{
   const cIdx = q.type!=='NAT' && hasValue(q.correctAnswer) ? String(q.correctAnswer).split(',').map(Number) : [];
   const uIdx = q.type!=='NAT' && hasValue(q.userAnswer) ? (Array.isArray(q.userAnswer)?q.userAnswer.map(Number):String(q.userAnswer).split(',').map(Number)) : [];
+  
+  // Determine if question was not attempted
+  const isNotAttempted = q.status !== 'correct' && q.status !== 'wrong';
 
   return `
 <div class="question">
 <div class="question-header">
-  <div class="question-number">Q${q.id}</div>
+  <div>
+    <div class="question-number">Q${q.id}</div>
+    <div class="question-type">${q.marks}M ${q.type}</div>
+  </div>
   <div class="question-status ${
     q.status==='correct'?'status-correct':q.status==='wrong'?'status-wrong':'status-not-attempted'
   }">
@@ -882,7 +896,12 @@ ${q.options.map((opt,i)=>{
   const isUserSelected = uIdx.includes(i);
   
   // Apply appropriate classes based on status
-  if (isCorrect && isUserSelected) {
+  if (isNotAttempted) {
+    // For not attempted questions, highlight correct answers in blue
+    if (isCorrect) {
+      cls += ' option-not-attempted-correct';
+    }
+  } else if (isCorrect && isUserSelected) {
     cls += ' option-user-correct';
   } else if (isCorrect && !isUserSelected) {
     cls += ' option-correct';
